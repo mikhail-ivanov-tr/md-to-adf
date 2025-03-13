@@ -1,6 +1,6 @@
 // test_conversion.js
 
-const translateGITHUBMarkdownToADF = require('./dist/index.js'); // Assuming your main file is index.js
+const translateGITHUBMarkdownToADF = require('./dist/index.js');
 
 // --- Test Cases ---
 

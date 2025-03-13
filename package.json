@@ -24,6 +24,7 @@
     "adf"
   ],
   "dependencies": {
+    "@atlaskit/adf-utils": "^19.19.0",
     "adf-builder": "^3.3.0",
     "marked": "^15.0.7"
   },

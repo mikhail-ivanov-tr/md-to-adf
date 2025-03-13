@@ -9,7 +9,13 @@
  * It also remove non-compatible hierarchy that ADF doesn't support
  *
  **********************************************************************************************************************/
-const { marks, Heading, Text, Emoji, BulletList, OrderedList, ListItem, CodeBlock, BlockQuote, Paragraph, Rule, Table, TableRow, TableCell, TableHeader }    = require( 'adf-builder' )
+const { doc, p, emoji } = require('@atlaskit/adf-utils/builders');
+
+const adfDoc = doc(
+	p('My favourite emoji is ', emoji({ text: '🤦‍♂️', shortName: ':man_facepalming:' }), '. What is yours?'),
+);
+
+console.log(adfDoc);
 
 const attachTextToNodeSliceEmphasis = require( __dirname + '/adfEmphasisParsing' )
 
