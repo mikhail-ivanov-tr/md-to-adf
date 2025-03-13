@@ -44,7 +44,7 @@ The \`PortalTmsApproveController\` class's method, \`reject\`, accepts the follo
 
 The following logic is executed based on these inputs and the \`Rejection_Reason__c\` value:
 
-**1. Expense Rejected - Admin (Rejection Reason: "Non-Billable Item" or "Other")**
+## 1. Expense Rejected - Admin (Rejection Reason: "Non-Billable Item" or "Other")
 
 * **Trigger:**  An expense line is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Non-Billable Item" or "Other". The \`etlId\` will be provided.
 * **Actions:**
@@ -59,7 +59,7 @@ The following logic is executed based on these inputs and the \`Rejection_Reason
         *   **Timesheet Exception Update:** No update to \`Timesheet__c.Exception__c\` in this scenario.
         *   **ETL Exception Update:** No update to \`Entered_Timesheet_Line__c.Exception__c\` in this scenario.
 
-**2. Expense Rejected - Worker (Rejection Reason: "Incorrect Entry (Time/Amount)" or "Missing Documentation")**
+## 2. Expense Rejected - Worker (Rejection Reason: "Incorrect Entry (Time/Amount)" or "Missing Documentation")
 
 * **Trigger:** An expense line is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Incorrect Entry (Time/Amount)" or "Missing Documentation". The \`etlId\` will be provided.
 * **Actions:**
@@ -72,7 +72,7 @@ The following logic is executed based on these inputs and the \`Rejection_Reason
         *   Subject: Rejection received for {!Timesheet__c.Reference__c}
         *   Body: An expense on {!Timesheet__c.Reference__c} has been rejected. Reason for Rejection: {!Timesheet__c.Rate_Card__r.Project__r.Rejection_Reason__c}. Please review the details on your portal and take any necessary action.
 
-**3. Timesheet Rejected - Admin (Rejection Reason: "Non-Billable Item" or "Other")**
+## 3. Timesheet Rejected - Admin (Rejection Reason: "Non-Billable Item" or "Other")
 
 * **Trigger:** An entire timesheet is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Non-Billable Item" or "Other".  The \`etlId\` will be null.
 * **Actions:**
@@ -87,7 +87,7 @@ The following logic is executed based on these inputs and the \`Rejection_Reason
         *   **Timesheet Exception Update:** No update to \`Timesheet__c.Exception__c\` in this scenario.
         *   **ETL Exception Update:** No update to \`Entered_Timesheet_Line__c.Exception__c\` in this scenario.
 
-**4. Timesheet Rejected - Worker (Rejection Reason: "Incorrect Entry (Time/Amount)" or "Missing Documentation")**
+## 4. Timesheet Rejected - Worker (Rejection Reason: "Incorrect Entry (Time/Amount)" or "Missing Documentation")
 
 * **Trigger:** An entire timesheet is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Incorrect Entry (Time/Amount)" or "Missing Documentation". The \`etlId\` will be null.
 * **Actions:**
@@ -103,7 +103,6 @@ The following logic is executed based on these inputs and the \`Rejection_Reason
         *   **ETL Exception Update:** No update to \`Entered_Timesheet_Line__c.Exception__c\` in this scenario.
 
 ## Summary
-
 
 | Scenario                        | PTL Actions                                         | ETL Actions                                                                                        | Timesheet Actions                                                                                                     | Email Notification (Template Name)         |
 |-------------------------------|-----------------------------------------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|

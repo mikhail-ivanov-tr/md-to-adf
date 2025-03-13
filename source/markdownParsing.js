@@ -96,7 +96,7 @@ function matchTable(lineToMatch) {
 	// Split into cells, trim whitespace.
 	const cells = lineToMatch.split('|').map(cell => cell.trim());
 	
-	// Table line should start and end with `|`
+	// Table line must start and end with `|`
 	if (cells[0] || cells[cells.length - 1]) {
 		return null;
 	}
@@ -116,7 +116,7 @@ function matchTable(lineToMatch) {
 		adfType: "tableRow",
 		textToEmphasis: "",
 		textPosition: 0,
-		cells: cells, // Store the cell contents
+		cells: cells.slice(1, -1), // Store the cell contents
 	};
 }
 
