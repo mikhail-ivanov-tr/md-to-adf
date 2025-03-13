@@ -9,175 +9,197 @@ const testCases = [
 	{
 		name: 'Full',
 		markdown: `
+**Tasks**
+
+* **Worker Submittal Notification Automation**:
+  1. Functional
+  2. Apex Tests
+* **Weekly Summary Notification Batch & Scheduler**:
+  1. Functional
+  2. Apex Tests
+* **Admin Console & Package Install**:
+  1. Functional
+  2. Apex Tests for Install
+
+---
+
 DESIGN
 
 # Introduction
 
 ## 1. Overview
 
-This feature provides the backend (Apex) logic to handle the rejection of timesheets and expenses within the Timesheet Portal. It is triggered by a LWC component (containing the "Reject" button). The feature processes rejections differently based on the rejection reason (obtained from the \`Project__c\` object) and whether the rejection applies to an entire timesheet or a single expense line. Actions include updating the status of Timesheet and Entered Timesheet Line (ETL) records, deleting or updating Processed Timesheet Line (PTL) records, and sending email notifications to either the worker or the Time Administrator.
+This feature introduces email notifications to timesheet approvers within the Timesheet Portal. It allows administrators to configure notification frequency for timesheet approvals at the Rate Card level.  The system will send automated email notifications to designated approvers based on the selected frequency: "Worker Submittal" (upon initial timesheet submission) or "Weekly Summary" (a weekly digest of pending timesheets).  The notification templates for both "Worker Submittal" and "Weekly Summary" emails are configurable within the Portal Admin Console. This feature aims to streamline the timesheet approval process by proactively notifying approvers and providing timely reminders about pending timesheets.
 
-## 2. Assumptions
+## 2. User Steps
 
-* The \`PortalTmsUtils.getTimesheetId(Id rateCardId, String periodEndIsoDate)\` method exists and correctly retrieves the Timesheet ID.
-* The calling LWC component will correctly provide the Rate ID, Period End Date, and ETL ID (when applicable).
-* The \`Project__c.Rejection_Reason__c\` field is populated with a valid value.
-* Email sending functionality (using Apex) is correctly configured and operational.
-* The necessary custom fields (\`Exception__c\` on Timesheet, \`Time_Administrator__c\` on Company Hierarchy, \`Rejection_Reason__c\` on Project) have been created.
-* There is a one-to-one relationship between one \`Entered_Timesheet_Line__c\` record and its corresponding \`Processed_Timesheet_Line__c\`.
+### 2.1. Worker User - Submitting Timesheet (Existing Flow)
 
-# Task 1: Reject Backend Logic
+1.  **Submit Timesheet:** Worker submits their timesheet through the standard timesheet submission process in the Timesheet Portal.
 
-This feature provides the backend logic (implemented as an Apex class \`PortalTmsApproveController\`) to handle the rejection of timesheets and expenses within the Timesheet Portal. The process is initiated by the LWC component (which is out of the scope of the current feature), which provides the necessary input data to the Apex controller. The core functionality is determined by two factors:
+### 2.2. Approver User - Receiving Notifications (Automated)
 
-1. **Type of Rejection:** Is it an entire timesheet being rejected, or a single expense line?
-2. **Rejection Reason:** This is determined by the \`Project__c.Rejection_Reason__c\` picklist field and dictates the subsequent actions and notifications.
+1.  **Receive "Worker Submittal" Notification (If configured):** Upon initial timesheet submission by a worker, and if "Worker Submittal" notification is configured for the related Rate Card, the designated approvers (Timesheet Approver 1 and Timesheet Approver 2 on the Rate Card) will receive an email notification using the selected "Worker Submittal" email template.
+2.  **Receive "Weekly Summary" Notification (If configured):** Every Monday at 6 AM (default schedule, configurable), and if "Weekly Summary" notification is configured for at least one Rate Card assigned to an approver, designated approvers will receive a weekly summary email. This email lists all workers with timesheets currently in 'Submitted' status, across all Rate Cards they are set as approvers for. The email uses the selected "Weekly Summary" email template.
 
-The \`PortalTmsApproveController\` class's method, \`reject\`, accepts the following input:
+## 3. Assumptions
 
-* \`rateId\` (Id): The ID of the \`Rate__c\` record associated with the timesheet entry or expense.
-* \`periodEndIsoDate\` (String): The ISO end date of the processing week for the timesheet.
-* \`etlId\` (Id, Optional): The ID of the \`Entered_Timesheet_Line__c\` record. This is *only* provided when rejecting a *single expense line*. If \`etlId\` is null, it's a timesheet rejection.
-* \`timesheetComment\` (String, Optional): The comment of the approver. This is *only* provided when rejecting a *timesheet*.
+*   **Approver Identification:** Approvers are identified via the "Timesheet Approver 1" and "Timesheet Approver 2" lookup fields on the \`Rate_Card__c\` object, pointing to Contact records.
+*   **Project and Rate Card Hierarchy:** A valid Project and Rate Card structure exists as defined in the data model. Rate Cards are associated with Projects.
+*   **Timesheet and Processing Week Logic:** The \`Timesheet__c\` and \`Processing_Week__c\` objects and their logic for period definition and processing are already implemented and function as described in the data model documentation.
+*   **ETL/PTL Terminology:** "ETL" refers to Entered Timesheet Line (\`Entered_Timesheet_Line__c\`) and "PTL" refers to Processed Timesheet Line (\`Processed_Timesheet_Line__c\`). Notifications are triggered upon PTL creation.
+*   **Timesheet Statuses:** The 'Submitted' status for both \`Timesheet__c\` and \`Entered_Timesheet_Line__c\` objects are existing and functional statuses.
 
-**Retrieve the Timesheet__c record ID**: Based on the input parameters (rateId, periodEndIsoDate), the Apex code will first retrieve the relevant Timesheet__c record ID using the \`PortalTmsUtils.getTimesheetId(Id rateCardId, String periodEndIsoDate)\` method.
+## 4. Restrictions
 
-The following logic is executed based on these inputs and the \`Rejection_Reason__c\` value:
+*   **Notification Frequency Options:**  Notification frequency is limited to the predefined options: "Worker Submittal", and "Weekly Summary".
+*   **Email Template Configuration:** Email templates must be pre-configured as Lightning or Classic Email Templates within Salesforce. The feature will only allow selection of existing templates.
+*   **Default "None" Behavior:** If no notification frequency is configured, the system will default to sending no notifications.
+*   **Batch and Scheduler Implementation Required:** The weekly summary email functionality requires development and implementation of a batch process and a scheduler to send emails weekly.
 
-## 1. Expense Rejected - Admin (Rejection Reason: "Non-Billable Item" or "Other")
+# Details
 
-* **Trigger:**  An expense line is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Non-Billable Item" or "Other". The \`etlId\` will be provided.
-* **Actions:**
+## 1. Notification Frequency Configuration
 
-  1. **Identify the PTL:** The corresponding \`Processed_Timesheet_Line__c\` (PTL) is retrieved using the \`Split_From_Entered_Timesheet_Line__c\` lookup field, which links it to the provided \`etlId\`.
-  2. **Update PTL Status:** The \`Approval_Status__c\` field of the identified PTL is set to "Rejected".
-  3. **Send Email to Time Administrator:** An email notification is sent to the Time Administrator.  The Time Administrator is determined by looking up the related \`Rate_Card__c\`, then the related \`Branch__c\` (a \`Company_Hierarchy__c\` record), and finally the \`Time_Administrator__c\` (User lookup) field on that record. If the \`Time_Administrator__c\` field is blank, no email is sent.
+Administrators can configure the frequency of email notifications for timesheet approvals at the **Rate Card** level.
 
-  *   **Email Content:**
-        *   Subject: Rejection received for {!Timesheet__c.Rate_Card__r.Worker__r.Name} {!Timesheet__c.Reference__c}
-        *   Body:  An expense on {!Timesheet__c.Reference__c} for {!Timesheet__c.Rate_Card__r.Worker__r.Name} has been rejected. Reason for Rejection: {!Timesheet__c.Rate_Card__r.Project__r.Rejection_Reason__c}. Please review the details in TargetRecruit and take any necessary action.
-        *   **Timesheet Exception Update:** No update to \`Timesheet__c.Exception__c\` in this scenario.
-        *   **ETL Exception Update:** No update to \`Entered_Timesheet_Line__c.Exception__c\` in this scenario.
+### 1.1. Rate Card Level Notification Frequency
 
-## 2. Expense Rejected - Worker (Rejection Reason: "Incorrect Entry (Time/Amount)" or "Missing Documentation")
+*   A new field, \`Notification_Frequency__c\`, is added to the \`Rate_Card__c\` object.
+*   **Field Label:** Notification Frequency
+*   **Help Text:** Automatically sends an email notification to approvers.
+*   **Data Type:** Multi-Select Picklist
+*   **Picklist Values:**
+    *   \`Worker Submittal\`: Sends a notification email to approvers when a worker initially submits a timesheet.  Only one notification is sent per timesheet submission, regardless of resubmissions before approval.
+    *   \`Weekly Summary\`: Sends a weekly summary email to approvers, listing all workers with pending timesheets.
+*   **Default Value:** "Worker Submittal" is set as the initial value during field creation, but the effective behavior if no value is *explicitly selected* on a Rate Card record is no notifications.
 
-* **Trigger:** An expense line is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Incorrect Entry (Time/Amount)" or "Missing Documentation". The \`etlId\` will be provided.
-* **Actions:**
+## 2. Email Templates
 
-  1. **Update Timesheet Exception:** The \`Exception__c\` field on the \`Timesheet__c\` record is updated with the text "Expense Rejected": [Rejection Reason]". The \`Timesheet__c\` record is identified using the \`rateId\` and \`periodEndDate\`.
-  2. **Update ETL Status:** The \`Status__c\` field of the identified \`Entered_Timesheet_Line__c\` (ETL) record (provided via \`etlId\`) is set to "Rejected". Also, the \`Exception__c\` field on the ETL is set to "Rejected: [Rejection Reason]".
-  3. **Send Email to Worker:** An email notification is sent to the worker.
+Two new Lightning Email Templates are created for this feature.
 
-  *   **Email Content:**
-        *   Subject: Rejection received for {!Timesheet__c.Reference__c}
-        *   Body: An expense on {!Timesheet__c.Reference__c} has been rejected. Reason for Rejection: {!Timesheet__c.Rate_Card__r.Project__r.Rejection_Reason__c}. Please review the details on your portal and take any necessary action.
+### 2.1. Approver Notification - Submittal Template
 
-## 3. Timesheet Rejected - Admin (Rejection Reason: "Non-Billable Item" or "Other")
+*   **Template Name:** Approver Notification - Submittal
+*   **Subject:** \`Timesheet Submission for {!Contact.Name} – Approval Requested\`
+*   **Body:**
+    \`\`\`
+    Dear approver,
 
-* **Trigger:** An entire timesheet is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Non-Billable Item" or "Other".  The \`etlId\` will be null.
-* **Actions:**
+    {!Contact.Name} has submitted their timesheet for the period {!Timesheet__c.Start_Date__c} – {!Timesheet__c.End_Date__c}, and it is now pending your approval.
 
-  1. **Identify PTLs:** *All* \`Processed_Timesheet_Line__c\` (PTL) records associated with the \`Timesheet__c\` are retrieved.
-  2. **Update PTL Statuses:** The \`Approval_Status__c\` field of *all* identified PTLs is set to "Rejected".
-  3. **Send Email to Time Administrator:** An email notification is sent to the Time Administrator (same logic as Expense Rejected - Admin).
+    Approving timesheets promptly helps ensure the timely processing of invoices and payroll.
 
-  *   **Email Content:**
-        *   Subject: Rejection received for {!Timesheet__c.Rate_Card__r.Worker__r.Name} {!Timesheet__c.Reference__c}
-        *   Body:  A timesheet on {!Timesheet__c.Reference__c} for {!Timesheet__c.Rate_Card__r.Worker__r.Name} has been rejected. Reason for Rejection: {!Timesheet__c.Rate_Card__r.Project__r.Rejection_Reason__c}. Please review the details in TargetRecruit and take any necessary action.
-        *   **Timesheet Exception Update:** No update to \`Timesheet__c.Exception__c\` in this scenario.
-        *   **ETL Exception Update:** No update to \`Entered_Timesheet_Line__c.Exception__c\` in this scenario.
+    [link to a particular worker/week]
 
-## 4. Timesheet Rejected - Worker (Rejection Reason: "Incorrect Entry (Time/Amount)" or "Missing Documentation")
+    Please take a moment to review, approve, or provide feedback at your earliest convenience. If you have any questions or need assistance, please feel free to reach out to your account team.
 
-* **Trigger:** An entire timesheet is rejected, and the associated \`Project__c.Rejection_Reason__c\` is "Incorrect Entry (Time/Amount)" or "Missing Documentation". The \`etlId\` will be null.
-* **Actions:**
+    Best regards,
+    {!Organization.Name}
+    \`\`\`
+    *   **Recipient:** Timesheet Approver 1 and Timesheet Approver 2 from the Rate Card.
+    *   **Trigger:** Sent upon initial timesheet submission by a worker, if "Worker Submittal" notification frequency is configured for the Rate Card.
 
-  1. **Update Timesheet Exception and Status:** The \`Exception__c\` field on the \`Timesheet__c\` record is updated with the text "Rejection reason: [Rejection reason]; Comments: [comments]".  The \`Timesheet__c.Status__c\` is set to "Rejected".
-  2. **Identify ETLs:** *All* \`Entered_Timesheet_Line__c\` (ETL) records associated with the \`Timesheet__c\` are retrieved.
-  3. **Update ETL Statuses:** The \`Status__c\` field of *all* identified ETLs is set to "Saved".
-  4. **Send Email to Worker:** An email notification is sent to the worker (same logic as Expense Rejected - Worker).
+### 2.2. Approver Notification - Summary Template
 
-  *   **Email Content:**
-        *   Subject: Rejection received for {!Timesheet__c.Reference__c}
-        *   Body: A timesheet on {!Timesheet__c.Reference__c} has been rejected. Reason for Rejection: {!Timesheet__c.Rate_Card__r.Project__r.Rejection_Reason__c}. Please review the details on your portal and take any necessary action.
-        *   **ETL Exception Update:** No update to \`Entered_Timesheet_Line__c.Exception__c\` in this scenario.
+*   **Template Name:** Approver Notification - Summary
+*   **Subject:** \`Weekly Summary – Timesheets Pending Your Review\`
+*   **Body:**
+    \`\`\`
+    Dear {!Contact.Name},
 
-## Summary
+    Here’s your weekly summary of timesheets awaiting approval.
 
-| Scenario                        | PTL Actions                                         | ETL Actions                                                                                        | Timesheet Actions                                                                                                     | Email Notification (Template Name)         |
-|-------------------------------|-----------------------------------------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
-| **Expense Rejected - Admin**    | **Selected PTL** Status Updated to "Rejected"       |                                                                                          |                                                                                             | Time Rejection Notification for **Admin**  |
-| **Expense Rejected - Worker**   |  | **Selected ETL** Status Updated to "Rejected", Exception updated to "Rejected: [Rejection Reason]" |                                                     | Time Rejection Notification for **Worker** |
-| **Timesheet Rejected - Admin**  | **All associated PTLs** Status Updated to "Rejected" |                                                                                          |                                                                                             | Time Rejection Notification for **Admin**  |
-| **Timesheet Rejected - Worker** |  | **All associated ETLs** Status Updated to "Saved"                                                  | Status Updated to "Rejected", Exception field updated to "Rejection reason: [Rejection reason]; Comments: [comments]" | Time Rejection Notification for **Worker** |
+    Pending Approvals:
 
-## Editable Elements in Admin Console
+    * Total Timesheets: {!Timesheet_Count}
 
-**"Timesheet Portal" tab | "Approver" tab | "Time Admin Notification - Rejection"** (**Email Template Lookup**). **Purpose:** To select the email template used to notify Time Administrators when a timesheet or expense is rejected for reasons categorized as "Non-Billable Item" or "Other". **Unique Name:** \`timeAdminRejectionNotificationTemplate\`. **Default value:** Time Rejection Notification for Admin. **Help text:** Select template to notify admin of rejection.
+    [link to the approver's dashboard]
 
-**"Timesheet Portal" tab | "Approver" tab | "Worker Notification - Rejection"** (**Email Template Lookup**). **Purpose:** To select the email template used to notify Workers when a timesheet or expense is rejected for reasons categorized as "Incorrect Entry (Time/Amount)" or "Missing Documentation". **Unique Name:** \`workerRejectionNotificationTemplate\`. **Default value:** Time Rejection Notification for Worker. **Help text:** Select template to notify worker of rejection.
+    Approving timesheets promptly helps ensure smooth processing for invoices and payroll.
 
-## Data Model Changes
+    Please take a moment to review and approve at your earliest convenience. If you have any questions or need assistance, please feel free to reach out to your account team.
 
-### New Custom Fields
+    Best regards,
+    {!Organization.Name}
+    \`\`\`
+    *   **Recipient:** Timesheet Approver 1 and Timesheet Approver 2 from each Rate Card that has pending timesheets in 'Submitted' status.
+    *   **Trigger:** Sent weekly, every Monday at 6 AM (default schedule, configurable), via the "Weekly Approver Summary" batch process, to approvers who have Rate Cards with timesheets in 'Submitted' status. The email includes a summary of all pending timesheets across all their Rate Cards.
 
-* **Object:** \`Project__c\`
+## 3. Automation and Batch Processing
 
-  * **Field API Name:** \`Rejection_Reason__c\`
-  * **Data Type:** Picklist
-  * **Purpose:** Stores the reason for rejecting a timesheet or expense, driving different rejection workflows and notifications.
-  * **Picklist Values:** Incorrect Entry (Time/Amount); Missing Documentation; Non-Billable Item; Other
-* **Object:** \`Company_Hierarchy__c\`
+### 3.1. Worker Submittal Notification Automation
 
-  * **Field API Name:** \`Time_Administrator__c\`
-  * **Data Type:** Lookup (to User)
-  * **Purpose:** Stores the designated Time Administrator for a Branch, who will receive email notifications for certain types of rejections.
-* **Object:** \`Timesheet__c\`
+*   **Trigger Event:** Worker clicks the "Submit" button in the Timesheet Portal. This action can submit **one or more timesheets simultaneously**.
+*   **Process:** For **each timesheet** submitted in the submission action:
+    1.  **Base Timesheet Query (Reusable):** A base SOQL query is defined to retrieve \`Timesheet__c\` records and related \`Rate_Card__c\` and approver information. This base query will be reused for both "Worker Submittal" and "Weekly Summary" notifications. The base query filters for:
+        *   \`Timesheet__c\` records
+        *   Related \`Rate_Card__c\` records where:
+            *   At least one of \`Rate_Card__c.Timesheet_Approver_1__c\` or \`Rate_Card__c.Timesheet_Approver_2__c\` is not blank (approvers are defined).
+    2.  **Worker Submittal Specific Query:** For "Worker Submittal" notifications, the base query is extended with the following **dynamic filters**:
+        *   \`Id IN :timesheetIds\` -  Filters to only include the specific \`Timesheet__c\` records being submitted in the current action (where \`timesheetIds\` is a collection of IDs of the submitted timesheets).
+        *   **Notification Frequency Check:**  \`Rate_Card__c.Notification_Frequency__c\` **contains** "Worker Submittal".
+    3.  **Retrieve Timesheet Data:** Execute the dynamically constructed SOQL query to retrieve \`Timesheet__c\` records.
+    4.  **Notification Logic:**  For each retrieved \`Timesheet__c\` record:
+        *   *Subject merge fields processing:*
+            \`\`\`java
+            String submittalSubject = SendEmailHelper.mergeFields(emailTemplateSubmittal.Subject, timesheet.Rate_Card__r.Worker__c, false);
+            submittalSubject = SendEmailHelper.mergeFields(submittalSubject, timesheet.Id, false);
+            \`\`\`
+        *   *Body merge fields processing:*
+            \`\`\`java
+            String submittalBody = SendEmailHelper.mergeFields(emailTemplateSubmittal.Body, timesheet.Rate_Card__r.Worker__c, false);
+            submittalBody = SendEmailHelper.mergeFields(submittalBody, timesheet.Id, false);
+            \`\`\`
+        *   *Create and send email:*
+        
 
-  * **Field API Name:** \`Exception__c\`
-  * **Data Type:** Text(255)
-  * **Purpose:** Stores an exception message on the Timesheet record when it or an associated expense is rejected, providing a reason for rejection to the worker.
+### 3.2. Weekly Summary Notification Batch & Scheduler
 
-# Task 2: "Resolve Issue" Flow for Time Portal Rejections
+*   **Batch Apex Class Name:** \`BatchPortalSubmitNotification\`
+*   **Purpose:** To send weekly summary emails to timesheet approvers with pending timesheets that are in "Submitted" status.
+*   **Batch Apex Class Logic:**
 
-## 1. Resolve Issue Navigation Logic
+    *   **Start Method:**
+        *   **Base Timesheet Query (Reused):** Utilize the **same base SOQL query** defined in "Worker Submittal Notification Automation".
+        *   **Weekly Summary Specific Query:** Extend the base query with the following filter:
+            *   **Notification Frequency Check:** \`Rate_Card__c.Notification_Frequency__c\` **contains** "Weekly Summary".
+        *   **Retrieve Timesheet Data:** The \`start\` method will return a Database.QueryLocator with the query.
 
-* **Context:** When the "Resolve Issue" button (or similar mechanism) is clicked in the Time Portal.
-* **Action:** Implement logic to navigate the worker to the first week containing a rejection issue.
-* **Details:**
-  * When the "Resolve Issue" button is clicked:
-    * **Week Identification:** The application must identify the *first* week where either:
-      * The related \`Timesheet__c\` record for that week has a populated \`Exception__c\` field (indicating a timesheet rejection).
-      * *Any* \`Entered_Timesheet_Line__c\` record within the timesheet for that week has a populated \`Exception__c\` field.
-    * **Week Navigation:** Once the week is identified, the application must automatically open the **[View Timesheets on Mobile - Week]** page, displaying the timesheet for that specific week. This should bring the worker directly to the week containing the rejection issue for easy resolution.
+    *   **Execute Method:**
+        *   **Processing Batches of Timesheets:** The \`execute\` method will process batches of \`Timesheet__c\` records retrieved by the \`start\` method.
+        *   **Aggregating Data per Approver (using Stateful approach):** To efficiently summarize data for each approver, the batch class will utilize **stateful variables (class-level variables)** to accumulate:
+            *   **Map of Approver to Timesheets:** \`Map<Id, List<Timesheet__c>> approverIdToTimesheets = new Map<Id, List<Timesheet__c>>();\`  to store timesheets, grouped by approver ID.
+        *   **Iteration through Timesheets:** For each \`Timesheet__c\` record in the current batch:
+            *   Get the associated \`Rate_Card__c\` and its "Timesheet Approver 1" and "Timesheet Approver 2".
+            *   For each approver (Approver 1 if not null and Approver 2 if not null):
+                *   If the approver ID is not already a key in \`approverIdToTimesheets\`, initialize an empty list: \`approverIdToTimesheets.put(approverId, new List<Timesheet__c>());\`
+                *   Add the current \`Timesheet__c\` record to the list associated with the approver ID: \`approverIdToTimesheets.get(approverId).add(timesheet);\`
+            *   *(Stateful variables will maintain these counts and lists across batch execution chunks).*
 
-## 2. Expense Rejection - Issue Resolution Flow Integration
+    *   **Finish Method:**
+        *   **Email Generation and Sending:** The \`finish\` method will be executed once all batches are processed.
+        *   **Iterate through Approvers:** Iterate through the keyset of \`approverIdToTimesheets\` map (which represents unique approvers).
+        *   **Generate Summary Content:** For each approver ID:
+            *   Retrieve the list of submitted timesheets for the current approver from \`approverIdToTimesheets.get(approverId)\`.
+            *   Retrieve the count of submitted timesheets: \`Integer timesheetCount = approverIdToTimesheets.get(approverId).size();\`
+            *   Populate the "Approver Notification - Summary" email template with merge fields: Approver's Name, Total Pending Timesheets Count.
+            *   *Subject merge fields processing:*
+                \`\`\`java
+                String summarySubject = SendEmailHelper.mergeFields(emailTemplateSummary.Subject, approverId, false);
+                \`\`\`
+            *   *Body merge fields processing:*
+            
+            *   *Create and send email:*
+            
+*   **Scheduling Mechanism:**  Implemented using the standard Salesforce Apex Scheduler *(Use the same BatchPortalSubmitNotification Apex class)*.
 
-* **Context:** When an expense line is rejected.
-* **Action:** Integrate the expense rejection into the existing issue resolution flow within the Time Entry Portal.
-* **Details:**
-  * Ensure that when an expense is rejected (\`[Entered_Timesheet_Line__c]:Exception__c\` field has a value), it becomes part of the worker's issue resolution workflow.
-  * Ensure the **[Submit]** button is enabled on the "View Timesheets - Week" page when an expense within the timesheet is rejected. This allows the worker to resubmit the timesheet after resolving the expense issue.
+# Editable elements in Admin Console
 
-## 3. Timesheet Rejection - "Resolve Issue" Flow & Exception Message Display
+"Timesheet Portal" tab | Approver top tab | "Email Notification - Submittal" (**Email Template Lookup**). **Purpose:** Configure the email template used for "Worker Submittal" notifications to approvers. **Unique Name:** \`emailTemplateSubmittalNotification\`.  **Default value:** "Approver Notification - Submittal". **Help text:** "Select the email template to be used when sending notifications to approvers upon timesheet submittal by a worker. If no template is selected, this notification type will be disabled."
 
-* **Context:** When an entire timesheet is rejected.
-* **Action:** Update the Time Portal experience to incorporate the "Resolve Issue" flow for timesheet rejections.
-* **Details:**
-  * When a timesheet is rejected (\`[Timesheet__c]:Exception__c\` field has a value), direct the user to the "Resolve Issue" flow.
-  * **Navigation:** When a timesheet is rejected, upon accessing the timesheet, the worker should be navigated to the **[View Timesheets on Mobile - Week]** page.
-  * **Rejection Message Display:**
-    * Display the rejection message to the worker.
-    * **Placement:** Position the message on the **[View Timesheets on Mobile - Week]** page, specifically between the "Summary" section and the "Day cards" section.
-    * **Message Content:** Display the text directly from the \`[Timesheet__c].Exception__c\` field.
+"Timesheet Portal" tab | Approver top tab | "Email Notification - Summary" (**Email Template Lookup**). **Purpose:** Configure the email template used for "Weekly Summary" notifications to approvers. **Unique Name:** \`emailTemplateSummaryNotification\`.  **Default value:** "Approver Notification - Summary". **Help text:** "Select the email template to be used when sending weekly summary notifications of pending timesheets to approvers. If no template is selected, this notification type will be disabled."
 
-## 4. Exception Field Clearing on Resubmission
-
-* **Context:** When a worker resolves the rejection issue and resubmits the timesheet/expense.
-* **Action:** Automatically clear the \`Exception__c\` fields upon successful resubmission.
-* **Details:**
-  * **[Timesheet__c]:Exception__c:** When a timesheet is resubmitted after rejection, clear the value of the \`Exception__c\` field on the \`Timesheet__c\` record.
-  * **[Entered_Timesheet_Line__c]:Exception__c:** (Must be already implemented in https://targetrecruit.atlassian.net/browse/PSTA-5468, but should be double-checked) When an expense line is resubmitted (as part of a timesheet or individually, depending on the portal's expense submission flow), clear the \`Exception__c\` field on the relevant \`Entered_Timesheet_Line__c\` record.
 `,
 		expectedContains: [  // Simplified checks - we just check for presence of key strings
 			'type": "table"',
