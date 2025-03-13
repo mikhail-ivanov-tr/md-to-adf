@@ -2544,7 +2544,6 @@ const {
 	strong, em, strike, text
 } = __webpack_require__(448);
 
-
 /**
  * Parse a string character per character to find emphasis patterns
  *  This is a very "manual" way to do it, but it provides the most efficient result
@@ -2552,7 +2551,7 @@ const {
  * @param textToEmphasis       {String}   text to parse for emphasis parsing
  */
 function attachTextToNodeSliceEmphasis(parentNode, textToEmphasis) {
-	const lineUnderscored = textToEmphasis.replace(/\*/g, '_');
+	const lineUnderscored = textToEmphasis/*.replace(/\*!/g, '_')*/;
 	let currentDecorationLevel = 0;
 	//see convertDecorationLevelToMark
 	// 0 => no decoration
@@ -2564,8 +2563,7 @@ function attachTextToNodeSliceEmphasis(parentNode, textToEmphasis) {
 	let strikedThrough = false;
 	let expressionBuffer = '';
 	for (const currentCharacterIndex in lineUnderscored) {
-		
-		if (lineUnderscored[currentCharacterIndex] !== '_') {
+		if (lineUnderscored[currentCharacterIndex] !== '*') {
 			expressionBuffer += lineUnderscored[currentCharacterIndex];
 			
 			if (potentialUnderscorePair) {
@@ -2587,18 +2585,15 @@ function attachTextToNodeSliceEmphasis(parentNode, textToEmphasis) {
 			strikedThrough = !strikedThrough;
 		}
 		
-		
-		if (lineUnderscored[currentCharacterIndex] === '_') {
+		if (lineUnderscored[currentCharacterIndex] === '*') {
 			if (expressionBuffer !== '') {
 				const textNode = convertDecorationLevelToMark(expressionBuffer, currentDecorationLevel, strikedThrough);
 				parentNode.content.push(textNode);
 				// textWithInline( parentNode, expressionBuffer, decorationToUse )
-			}
-			else {
-				if (potentialUnderscorePair)
-					currentDecorationLevel = currentDecorationLevel === 0 || currentDecorationLevel === 1
-						? currentDecorationLevel + 2
-						: currentDecorationLevel - 2;
+			} else if (potentialUnderscorePair) {
+				currentDecorationLevel = currentDecorationLevel === 0 || currentDecorationLevel === 1
+					? currentDecorationLevel + 2
+					: currentDecorationLevel - 2;
 			}
 			
 			potentialUnderscorePair = !potentialUnderscorePair;
@@ -2622,26 +2617,27 @@ function attachTextToNodeSliceEmphasis(parentNode, textToEmphasis) {
  *                                         3 => bold and italic
  * @param addStrikethrough        {Boolean}     is strikethrough active?
  */
-function convertDecorationLevelToMark(text, decorationLevelToConvert, addStrikethrough) {
-	let result = text;
-	if (addStrikethrough) {
-		result = strike(result);
+function convertDecorationLevelToMark(result, decorationLevelToConvert, addStrikethrough) {
+	if (decorationLevelToConvert === 0 && !addStrikethrough) {
+		return text(result);
 	}
 	
-	if (decorationLevelToConvert === 0) {
-		return undefined;
+	if (addStrikethrough) {
+		result = strike(result);
 	}
 	
 	if (decorationLevelToConvert === 2 || decorationLevelToConvert === 3) {
 		result = strong(result);
 	}
 	
-	if (decorationLevelToConvert === 1) {
+	if (decorationLevelToConvert === 1 || decorationLevelToConvert === 3) {
 		result = em(result);
 	}
+	
+	return result;
 }
 
-module.exports = attachTextToNodeSliceEmphasis
+module.exports = attachTextToNodeSliceEmphasis;
 
 
 /***/ }),
