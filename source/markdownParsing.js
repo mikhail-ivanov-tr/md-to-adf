@@ -96,8 +96,12 @@ function matchTable(lineToMatch) {
 	// Split into cells, trim whitespace.
 	const cells = lineToMatch.split('|').map(cell => cell.trim());
 	
-	if (lineToMatch.trim().match(/^[-:\|\s]+$/) && !lineToMatch.trim().match(/^[\s]*$/))
-	{
+	// Table line should start and end with `|`
+	if (cells[0] || cells[cells.length - 1]) {
+		return null;
+	}
+	
+	if (lineToMatch.trim().match(/^[-:\|\s]+$/) && !lineToMatch.trim().match(/^[\s]*$/)) {
 		const numberOfHyphen = lineToMatch.trim().match(/[-]+/g)
 		if(numberOfHyphen && numberOfHyphen[0].length >= 3)
 			return {

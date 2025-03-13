@@ -9,15 +9,28 @@
  * It also remove non-compatible hierarchy that ADF doesn't support
  *
  **********************************************************************************************************************/
-const { doc, p, emoji } = require('@atlaskit/adf-utils/builders');
+// const { marks, Heading, Text, Emoji, BulletList, OrderedList, ListItem, CodeBlock, BlockQuote, Paragraph, Rule, Table, TableRow, TableCell, TableHeader }    = require( 'adf-builder' ) // OLD
+const {
+	strong, em, code, link, strike,
+	heading,
+	p,
+	emoji,
+	ul,
+	ol,
+	li,
+	codeBlock,
+	blockquote,
+	doc,
+	hr,
+	table,
+	tr,
+	td,
+	th,
+	//hardBreak,  // Not used, so commented out
+	text,
+} = require('@atlaskit/adf-utils/builders');
 
-const adfDoc = doc(
-	p('My favourite emoji is ', emoji({ text: '🤦‍♂️', shortName: ':man_facepalming:' }), '. What is yours?'),
-);
-
-console.log(adfDoc);
-
-const attachTextToNodeSliceEmphasis = require( __dirname + '/adfEmphasisParsing' )
+const attachTextToNodeSliceEmphasis = require('./adfEmphasisParsing');
 
 // /**
 //  * @typedef { import("./markdownParsing").IRElement } IRElement
@@ -26,113 +39,116 @@ const attachTextToNodeSliceEmphasis = require( __dirname + '/adfEmphasisParsing'
 
 /**
  * Browse the tree recursively to add each node to the ADF Document
- * 	It also treat special cases between top-level node and generic ones
+ *  It also treat special cases between top-level node and generic ones
  *
- * @param currentParentNode					{Document}		ADF document to add to
- * @param currentArrayOfNodesOfSameIndent	{IRTreeNode}
+ * @param currentParentNode             {Document}    ADF document to add to
+ * @param currentArrayOfNodesOfSameIndent   {IRTreeNode}
  */
-function fillADFNodesWithMarkdown( currentParentNode, currentArrayOfNodesOfSameIndent ){
-	currentArrayOfNodesOfSameIndent.reduce( ( lastListNode, currentNode ) => {
-		
-		if (currentNode.node.adfType === "table") {
+function fillADFNodesWithMarkdown(currentParentNode, currentArrayOfNodesOfSameIndent) {
+	currentArrayOfNodesOfSameIndent.reduce((lastListNode, currentNode) => {
+		if (currentNode.node && currentNode.node.adfType === "table") {
 			const tableNode = addTypeToNode(currentParentNode, "table");
-			fillADFNodesWithMarkdown(tableNode, currentNode.children); // Process table rows
+			fillADFNodesWithMarkdown(tableNode, currentNode.node.children); // Process table rows
 			return tableNode;
 		}
 		
-		if (currentNode.node.adfType === "tableRow") {
-			const tableRowNode = new TableRow();
-			currentParentNode.content.add(tableRowNode);
+		if (currentNode.adfType === "tableRow") {
+			const tableRowNode = tr();
+			tableRowNode.content = [];
+			
+			currentParentNode.content.push(tableRowNode);
 			
 			// Always treat the first row as header in standard Markdown.
 			const isHeader = currentParentNode.content.length === 1;
 			
-			
-			for (const cellContent of currentNode.node.cells) {
+			for (const cellContent of currentNode.cells) {
 				//Use TableHeader if first row, TableCell otherwise
-				const cellNode = isHeader ? new TableHeader() : new TableCell();
-				tableRowNode.content.add(cellNode);
-				const paragraph = new Paragraph()
-				cellNode.content.add(paragraph)
+				const cellNode = (isHeader ? th() : td())();
+				tableRowNode.content.push(cellNode);
+				const paragraph = p();
+				cellNode.content.push(paragraph);
 				attachItemNode(paragraph, cellContent); // Fill cell with a paragraph (simplified)
 			}
 			return tableRowNode;
 		}
 		
 		const nodeOrListNode = lastListNode !== null
-		&& ( currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList' )
-		&& lastListNode.content.type === currentNode.node.adfType
+		&& (currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList')
+		&& lastListNode.type === currentNode.node.adfType
 			? lastListNode
-			: addTypeToNode( currentParentNode, currentNode.node.adfType, currentNode.node.typeParam )
+			: addTypeToNode(currentParentNode, currentNode.node.adfType, currentNode.node.typeParam);
+		
+		const listItem = li();
+		listItem.content = [];
 		
 		const nodeOrListItem = currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList'
-			? nodeOrListNode.content.add( new ListItem() )
-			: nodeOrListNode
+			? nodeOrListNode.content.push(listItem) && nodeOrListNode.content[nodeOrListNode.content.length - 1]
+			: nodeOrListNode;
 		const nodeToAttachTextTo = currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList' || currentNode.node.adfType === 'blockQuote'
 			? typeof currentNode.node.textToEmphasis !== 'undefined' || currentNode.children.length === 0
-				? nodeOrListItem.content.add( new Paragraph() )
+				? nodeOrListItem.content.push(p()) && nodeOrListItem.content[nodeOrListItem.content.length - 1]
 				: nodeOrListItem
-			: nodeOrListItem
+			: nodeOrListItem;
 		
-		if( currentNode.node.adfType === 'divider' )
+		if (currentNode.node.adfType === 'divider')
 			return lastListNode
 		
-		else if( currentNode.node.adfType !== 'codeBlock'
-			&& currentNode.node.textToEmphasis )
-			attachItemNode( nodeToAttachTextTo, currentNode.node.textToEmphasis )
+		else if (currentNode.node.adfType !== 'codeBlock'
+			&& currentNode.node.textToEmphasis)
+			attachItemNode(nodeToAttachTextTo, currentNode.node.textToEmphasis)
 		
-		else if( currentNode.node.adfType !== 'codeBlock'
-			&& currentNode.node.textToEmphasis === '' )
-			attachItemNode( nodeToAttachTextTo, ' ' )
+		else if (currentNode.node.adfType !== 'codeBlock'
+			&& currentNode.node.textToEmphasis === '')
+			attachItemNode(nodeToAttachTextTo, ' ')
 		
-		else if( currentNode.node.adfType === 'codeBlock' )
-			attachTextToNodeRaw( nodeToAttachTextTo, currentNode.node.textToEmphasis )
+		else if (currentNode.node.adfType === 'codeBlock')
+			attachTextToNodeRaw(nodeToAttachTextTo, currentNode.node.textToEmphasis)
 		
-		if( currentNode.children )
-			fillADFNodesWithMarkdown( nodeOrListItem, currentNode.children )
+		if (currentNode.children)
+			fillADFNodesWithMarkdown(nodeOrListItem, currentNode.children)
 		
-		return ( currentNode.node.adfType !== 'orderedList' && currentNode.node.adfType !== 'bulletList' )
-		|| ( !lastListNode || currentNode.node.adfType === lastListNode.content.type )
+		return (currentNode.node.adfType !== 'orderedList' && currentNode.node.adfType !== 'bulletList')
+		|| (!lastListNode || currentNode.node.adfType === lastListNode.type)
 			? nodeOrListNode
-			: lastListNode
-	}, null )
+			: lastListNode;
+	}, null)
 }
 
 /**
  *  Adding a Top-Level ADF element
  *
- * @param adfNodeToAttachTo	{Node}		ADF node to attach this element to
- * @param adfType			{String}	ADF Type of the element we want to attach
- * @param typeParams		{String}	extra params for special top-level nodes
+ * @param adfNodeToAttachTo {Node}    ADF node to attach this element to
+ * @param adfType         {String}   ADF Type of the element we want to attach
+ * @param typeParams       {String}   extra params for special top-level nodes
  *
- * @returns 				{Node}		the node added
+ * @returns              {Node}    the node added
  */
 function addTypeToNode(adfNodeToAttachTo, adfType, typeParams) {
 	switch (adfType) {
 		case "heading":
-			return adfNodeToAttachTo.content.add( new Heading( typeParams ) )
+			return adfNodeToAttachTo.content.push(heading({level: typeParams})()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		
 		case "divider":
-			return adfNodeToAttachTo.content.add( new Rule() )
+			return adfNodeToAttachTo.content.push(hr()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		
 		case "bulletList":
-			return adfNodeToAttachTo.content.add( new BulletList() )
+			return adfNodeToAttachTo.content.push(ul()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		
 		case "orderedList": {
-			const orderedListNode = new OrderedList( )
-			if( typeParams ) orderedListNode.attrs = { order: typeParams }
-			return adfNodeToAttachTo.content.add( orderedListNode )
+			const orderedListNode = ol()();
+			if (typeParams) orderedListNode.attrs = { order: typeParams };
+			return adfNodeToAttachTo.content.push(orderedListNode) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		}
 		case "codeBlock":
-			return adfNodeToAttachTo.content.add( new CodeBlock( typeParams ) )
+			return adfNodeToAttachTo.content.push(codeBlock(typeParams)) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		
 		case "blockQuote":
-			return adfNodeToAttachTo.content.add( new BlockQuote() )
+			return adfNodeToAttachTo.content.push(blockquote()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		
 		case "paragraph":
-			return adfNodeToAttachTo.content.add(new Paragraph())
+			return adfNodeToAttachTo.content.push(p()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		case "table":
-			return adfNodeToAttachTo.content.add(new Table()); // Add table support
+			return adfNodeToAttachTo.content.push(table()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1]; // Add table support
 		default:
 			throw 'incompatible type'
 	}
@@ -141,62 +157,62 @@ function addTypeToNode(adfNodeToAttachTo, adfType, typeParams) {
 /**
  * Adding a non-top-level ADF node
  *
- * @param nodeToAttachTo		{Node}		ADF Node to attach to
- * @param rawText				{String}	text content of the node to add
+ * @param nodeToAttachTo       {Node}    ADF Node to attach to
+ * @param rawText            {String}   text content of the node to add
  */
-function attachItemNode( nodeToAttachTo, rawText ) {
-	const slicedInline = sliceInLineCode( rawText )
+function attachItemNode(nodeToAttachTo, rawText) {
+	const slicedInline = sliceInLineCode(rawText);
 	
-	const { slicedInlineAndEmoji } = slicedInline.reduce( ( { slicedInlineAndEmoji }, currentSlice ) => {
-		if( !currentSlice.isMatching ){
-			const slicedEmoji = sliceEmoji( currentSlice.text )
+	slicedInlineAndEmoji = slicedInline;
+	
+	/*const { slicedInlineAndEmoji } = slicedInline.reduce(( { slicedInlineAndEmoji }, currentSlice) => {
+		if (!currentSlice.isMatching) {
+			const slicedEmoji = sliceEmoji(currentSlice.text);
 			
-			return { slicedInlineAndEmoji: slicedInlineAndEmoji.concat( slicedEmoji ) }
+			return { slicedInlineAndEmoji: slicedInlineAndEmoji.concat(slicedEmoji) };
 		}
 		
-		slicedInlineAndEmoji.push( currentSlice )
-		return { slicedInlineAndEmoji }
-	}, { slicedInlineAndEmoji: [] } )
+		slicedInlineAndEmoji.push(currentSlice);
+		return { slicedInlineAndEmoji };
+	}, { slicedInlineAndEmoji: [] });*/
 	
-	const { slicedInlineAndEmojiAndLink } = slicedInlineAndEmoji.reduce( ( { slicedInlineAndEmojiAndLink }, currentSlice ) => {
-		if( !currentSlice.isMatching ){
-			const slicedLink = sliceLink( currentSlice.text )
+	const { slicedInlineAndEmojiAndLink } = slicedInlineAndEmoji.reduce(( { slicedInlineAndEmojiAndLink }, currentSlice) => {
+		if (!currentSlice.isMatching) {
+			const slicedLink = sliceLink(currentSlice.text);
 			
-			return { slicedInlineAndEmojiAndLink: slicedInlineAndEmojiAndLink.concat( slicedLink ) }
+			return { slicedInlineAndEmojiAndLink: slicedInlineAndEmojiAndLink.concat(slicedLink) };
 		}
 		
-		slicedInlineAndEmojiAndLink.push( currentSlice )
-		return { slicedInlineAndEmojiAndLink }
-	}, { slicedInlineAndEmojiAndLink: [] } )
+		slicedInlineAndEmojiAndLink.push(currentSlice);
+		return { slicedInlineAndEmojiAndLink };
+	}, { slicedInlineAndEmojiAndLink: [] });
 	
-	for( const currentSlice of slicedInlineAndEmojiAndLink ) {
-		switch( currentSlice.type ){
+	for (const currentSlice of slicedInlineAndEmojiAndLink) {
+		switch (currentSlice.type) {
 			case 'inline':
-				const inlineCodeNode = new Text( currentSlice.text, marks().code() )
-				nodeToAttachTo.content.add( inlineCodeNode )
-				break
+				const inlineCodeNode = code(currentSlice.text);
+				nodeToAttachTo.content.push(inlineCodeNode);
+				break;
 			
 			case 'emoji':
-				const emojiNode = new Emoji( {shortName: currentSlice.text } )
-				nodeToAttachTo.content.add( emojiNode )
-				break
+				const emojiNode = emoji({ shortName: currentSlice.text });
+				nodeToAttachTo.content.push(emojiNode);
+				break;
 			
 			case 'link':
-				const linkNode = new Text( currentSlice.text,
-										   marks().link( currentSlice.optionalText1,
-														 currentSlice.optionalText2 ) )
-				nodeToAttachTo.content.add( linkNode )
-				break
+				const linkNode = link(
+					{ href: currentSlice.optionalText1, title: currentSlice.optionalText2 })(currentSlice.text);
+				nodeToAttachTo.content.push(linkNode);
+				break;
 			
-			case 'image':
-				const imageNode = new Text( currentSlice.text,
-											marks().link( currentSlice.optionalText1,
-														  currentSlice.optionalText2 ) )
-				nodeToAttachTo.content.add( imageNode )
-				break
+			case 'image': //   Still treat a markdown image as a Link in term of ADF
+				const imageNode = link(
+					{ href: currentSlice.optionalText1, title: currentSlice.optionalText2 })(currentSlice.text);
+				nodeToAttachTo.content.push(imageNode);
+				break;
 			
 			default:
-				attachTextToNodeSliceEmphasis( nodeToAttachTo, currentSlice.text )
+				attachTextToNodeSliceEmphasis(nodeToAttachTo, currentSlice.text);
 			// const textNode = new Text( currentSlice.text, marksToUse )
 			// nodeToAttachTo.content.add( textNode )
 		}
@@ -206,86 +222,86 @@ function attachItemNode( nodeToAttachTo, rawText ) {
 /**
  * Match text content with and ADF inline type
  *
- * @param rawText				{String}	the text content to try to match
+ * @param rawText            {String}   the text content to try to match
  *
- * @returns 					{String[]}	the different slice matching an inline style
+ * @returns                 {String[]} the different slice matching an inline style
  */
-function sliceInLineCode( rawText ){
-	return sliceOneMatchFromRegexp( rawText, 'inline', /(?<nonMatchBefore>[^`]*)(?:`(?<match>[^`]+)`)(?<nonMatchAfter>[^`]*)/g )
+function sliceInLineCode(rawText) {
+	return sliceOneMatchFromRegexp(rawText, 'inline', /(?<nonMatchBefore>[^`]*)(?:`(?<match>[^`]+)`)(?<nonMatchAfter>[^`]*)/g);
 }
 
 /**
  * Match text content with and ADF emoji type
  *
- * @param rawText				{String}	the text content to try to match
+ * @param rawText            {String}   the text content to try to match
  *
- * @returns 					{String[]}	the different slice matching an emoji style
+ * @returns                 {String[]} the different slice matching an emoji style
  */
-function sliceEmoji( rawText ){
-	return sliceOneMatchFromRegexp( rawText, 'emoji',/(?<nonMatchBefore>[^`]*)(?::(?<match>[^`\s]+):)(?<nonMatchAfter>[^`]*)/g )
+function sliceEmoji(rawText) {
+	return sliceOneMatchFromRegexp(rawText, 'emoji', /(?<nonMatchBefore>[^`]*)(?::(?<match>[^`\s]+):)(?<nonMatchAfter>[^`]*)/g);
 }
 
 /**
  * Match text content with and ADF link type
  *
- * @param rawText				{String}	the text content to try to match
+ * @param rawText            {String}   the text content to try to match
  *
- * @returns 					{String[]}	the different slice matching a link style
+ * @returns                 {String[]} the different slice matching a link style
  */
-function sliceLink( rawText ){
-	return sliceOneMatchFromRegexp( rawText, 'link',/(?<nonMatchBefore>[^`]*)(?:\[(?<match>[^\[\]]+)\]\((?<matchOptional>[^\(\)"]+)(?: "(?<matchOptional2>[^"]*)")?\))(?<nonMatchAfter>[^`]*)/g )
+function sliceLink(rawText) {
+	return sliceOneMatchFromRegexp(rawText, 'link', /(?<nonMatchBefore>[^`]*)(?:\[(?<match>[^\[\]]+)\]\((?<matchOptional>[^\(\)"]+)(?: "(?<matchOptional2>[^"]*)")?\))(?<nonMatchAfter>[^`]*)/g);
 }
 
 /**
  * Match text content with and regular expression with one match
  *
- * @param rawText				{String}	the text content to try to match
- * @param typeTag				{String}	the ADF Type to return if it matches
- * @param regexpToSliceWith		{RegExp}	the regexp with a match group and a non-match group to use
+ * @param rawText            {String}   the text content to try to match
+ * @param typeTag            {String}   the ADF Type to return if it matches
+ * @param regexpToSliceWith    {RegExp}   the regexp with a match group and a non-match group to use
  *
- * @returns 					{String[]}	the different slice matching the specified regexp
+ * @returns                 {String[]} the different slice matching the specified regexp
  */
-function sliceOneMatchFromRegexp( rawText, typeTag, regexpToSliceWith ){
-	let slicesResult = [ ]
-	let snippet = null
-	let hasAtLeastOneExpression = false
+function sliceOneMatchFromRegexp(rawText, typeTag, regexpToSliceWith) {
+	let slicesResult = [];
+	let snippet = null;
+	let hasAtLeastOneExpression = false;
 	
-	while( ( snippet = regexpToSliceWith.exec( rawText ) ) ) {
+	while ((snippet = regexpToSliceWith.exec(rawText))) {
 		hasAtLeastOneExpression = true
-		if( snippet.groups.nonMatchBefore ){
-			slicesResult.push( { isMatching: false, text: snippet.groups.nonMatchBefore } )
+		if (snippet.groups.nonMatchBefore) {
+			slicesResult.push({ isMatching: false, text: snippet.groups.nonMatchBefore });
 		}
 		
-		if( snippet.groups.match ){
-			slicesResult.push( {
-								   isMatching: 		true,
-								   type: 			typeTag,
-								   text: 			snippet.groups.match,
-								   optionalText1: 	snippet.groups.matchOptional,
-								   optionalText2: 	snippet.groups.matchOptional2
-							   } )
+		if (snippet.groups.match) {
+			slicesResult.push({
+				isMatching: true,
+				type: typeTag,
+				text: snippet.groups.match,
+				optionalText1: snippet.groups.matchOptional,
+				optionalText2: snippet.groups.matchOptional2
+			});
 		}
 		
-		if( snippet.groups.nonMatchAfter ){
-			slicesResult.push( { isMatching: false, text: snippet.groups.nonMatchAfter } )
+		if (snippet.groups.nonMatchAfter) {
+			slicesResult.push({ isMatching: false, text: snippet.groups.nonMatchAfter });
 		}
 	}
 	
-	if( !hasAtLeastOneExpression )
-		slicesResult.push( { isMatching: false, text: rawText } )
+	if (!hasAtLeastOneExpression)
+		slicesResult.push({ isMatching: false, text: rawText });
 	
-	return slicesResult
+	return slicesResult;
 }
 
 /**
  * Attach a raw simple text node to the parent
  *
- * @param nodeToAttachTo	{Node}		ADF node to attach to
- * @param textToAttach		{String}	text to use for the Text node
+ * @param nodeToAttachTo    {Node}    ADF node to attach to
+ * @param textToAttach     {String}   text to use for the Text node
  */
-function attachTextToNodeRaw( nodeToAttachTo, textToAttach ){
-	const textNode = new Text( textToAttach )
-	nodeToAttachTo.content.add( textNode )
+function attachTextToNodeRaw(nodeToAttachTo, textToAttach) {
+	const textNode = text(textToAttach);
+	nodeToAttachTo.content.push(textNode);
 }
 
 module.exports = fillADFNodesWithMarkdown

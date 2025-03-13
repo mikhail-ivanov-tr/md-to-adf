@@ -5,7 +5,9 @@
  *  @author bruno.morel@b-yond.com
  *
  **********************************************************************************************************************/
-const { Document }	= require( 'adf-builder' )
+const {
+	doc
+} = require('@atlaskit/adf-utils/builders');
 
 
 const buildIRTreeFromMarkdown = require( __dirname + '/markdownHandling' )
@@ -15,7 +17,7 @@ function translateGITHUBMarkdownToADF( markdownText ){
 	
 	const textTree = buildIRTreeFromMarkdown( markdownText )
 	
-	const adfRoot = new Document()
+	const adfRoot = doc()
 	if( textTree.length > 0 )
 		fillADFNodesWithMarkdown( adfRoot, textTree )
 	
