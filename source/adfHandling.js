@@ -31,23 +31,20 @@ function fillADFNodesWithMarkdown( currentParentNode, currentArrayOfNodesOfSameI
 		if (currentNode.node.adfType === "table") {
 			const tableNode = addTypeToNode(currentParentNode, "table");
 			fillADFNodesWithMarkdown(tableNode, currentNode.children); // Process table rows
-			return tableNode; // Return the table node
+			return tableNode;
 		}
 		
 		if (currentNode.node.adfType === "tableRow") {
 			const tableRowNode = new TableRow();
 			currentParentNode.content.add(tableRowNode);
 			
-			let isHeader = false;
-			if (currentParentNode.content.length === 1) {
-				isHeader =
-					currentArrayOfNodesOfSameIndent[
-					currentArrayOfNodesOfSameIndent.indexOf(currentNode) + 1
-						]?.node.adfType === "tableDivider";
-			}
+			// Always treat the first row as header in standard Markdown.
+			const isHeader = currentParentNode.content.length === 1;
+			
 			
 			for (const cellContent of currentNode.node.cells) {
-				const cellNode = isHeader? new TableHeader() : new TableCell();
+				//Use TableHeader if first row, TableCell otherwise
+				const cellNode = isHeader ? new TableHeader() : new TableCell();
 				tableRowNode.content.add(cellNode);
 				const paragraph = new Paragraph()
 				cellNode.content.add(paragraph)

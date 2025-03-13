@@ -88,27 +88,31 @@ function matchHeader( lineToMatch ){
 }
 
 function matchTable(lineToMatch) {
-	// A simplified regex to detect a table row (at least one |).
-	//  More robust handling is needed for edge cases (see below).
-	if (!lineToMatch.trim().startsWith('|') || !lineToMatch.trim().endsWith('|')) {
+	// Check if it's a potential table row (contains at least one |)
+	if (lineToMatch.indexOf('|') === -1) {
 		return null;
 	}
 	
-	if (lineToMatch.trim().match(/^\|[-:\|\s]+\|$/)) {
-		return {
-			adfType: 'tableDivider',
-			textToEmphasis: lineToMatch.trim(),
-			textPosition: 0
-		};
+	// Split into cells, trim whitespace.
+	const cells = lineToMatch.split('|').map(cell => cell.trim());
+	
+	if (lineToMatch.trim().match(/^[-:\|\s]+$/) && !lineToMatch.trim().match(/^[\s]*$/))
+	{
+		const numberOfHyphen = lineToMatch.trim().match(/[-]+/g)
+		if(numberOfHyphen && numberOfHyphen[0].length >= 3)
+			return {
+				adfType: "tableDivider",
+				textToEmphasis: lineToMatch.trim(),
+				textPosition: 0,
+			};
 	}
 	
-	const cells = lineToMatch.trim().split('|').slice(1, -1).map(cell => cell.trim());
 	
 	return {
-		adfType: 'tableRow',
-		textToEmphasis: '', //  We don't use textToEmphasis directly for table rows
+		adfType: "tableRow",
+		textToEmphasis: "",
 		textPosition: 0,
-		cells: cells // Store the cell contents
+		cells: cells, // Store the cell contents
 	};
 }
 

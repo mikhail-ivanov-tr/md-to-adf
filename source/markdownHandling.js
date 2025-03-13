@@ -156,22 +156,33 @@ function collapseTable(rawIROfMarkdown) {
 		({ tableNodes, currentTable }, currentLineNode) => {
 			if (currentLineNode.adfType === "tableRow") {
 				if (!currentTable) {
-					// Start a new table
-					currentTable = {
-						adfType: "table",
-						children: [],
-						textPosition: currentLineNode.textPosition,
-						textToEmphasis: "",
-					};
-					tableNodes.push(currentTable);
+					// Start a new table *only if* the first row is followed by a divider
+					if (rawIROfMarkdown.length > rawIROfMarkdown.indexOf(currentLineNode) + 1 && rawIROfMarkdown[rawIROfMarkdown.indexOf(currentLineNode) + 1].adfType ==="tableDivider"){
+						currentTable = {
+							adfType: "table",
+							children: [], // Initialize children array
+							textPosition: currentLineNode.textPosition,
+							textToEmphasis: "",
+							isHeader: true, // Flag to indicate the first row is the header
+						};
+						tableNodes.push(currentTable);
+					}
+					else{
+						tableNodes.push(currentLineNode)
+						return {tableNodes}
+					}
 				}
-				currentTable.children.push(currentLineNode);
+				if(currentTable)
+					currentTable.children.push(currentLineNode);
 				return { tableNodes, currentTable };
 			} else if (currentLineNode.adfType === "tableDivider") {
+				// We ignore the divider itself in standard markdown,
+				// but we use its presence to confirm the start of a table.
 				return { tableNodes, currentTable };
-			} else {
+			}
+			else {
 				// Not a table row, end the current table (if any)
-				tableNodes.push(currentLineNode);
+				tableNodes.push(currentLineNode)
 				return { tableNodes, currentTable: null };
 			}
 		},
@@ -288,8 +299,7 @@ function accumulateLevelFromList( rawIROfMarkdown ){
 function createLevelList( rawIROfMarkdown ){
 	return rawIROfMarkdown.reduce( ( currentLevelList, currentNode ) => {
 		if( currentNode.adfType !== 'orderedList'
-			&& currentNode.adfType !== 'bulletList'
-			&& currentNode.adfType !== 'table')
+			&& currentNode.adfType !== 'bulletList' )
 			return currentLevelList
 		
 		return ( currentLevelList.includes( currentNode.textPosition + 2 ) || currentLevelList.includes( currentNode.textPosition + 3 ) )
