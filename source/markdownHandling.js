@@ -34,12 +34,14 @@ function buildTreeFromMarkdown( rawTextMarkdown ){
 	//block quote collapse paragraphs, so we have to to them first
 	const blockquotedNodes = collapseBlockquote( cleanedCodeBlock )
 	
+	const tableNode = collapseTable(blockquotedNodes)
+	
 	//paragraph themselves collapse when they are not separated by
 	// two consecutive empty lines
-	const breakedLineNodes = collapseParagraph( blockquotedNodes )
+	const breakedLineNodes = collapseParagraph( tableNode )
 	
 	//lists accumulate elements of the same level unless separated by
-	// 	two consecutive empty lines
+	//     two consecutive empty lines
 	const accumulatedNodes = accumulateLevelFromList( breakedLineNodes )
 	
 	//we build the array of textPosition for each level
@@ -149,6 +151,36 @@ function collapseBlockquote( rawIROfMarkdown ){
 	return blockquotedNodes
 }
 
+function collapseTable(rawIROfMarkdown) {
+	const { tableNodes } = rawIROfMarkdown.reduce(
+		({ tableNodes, currentTable }, currentLineNode) => {
+			if (currentLineNode.adfType === "tableRow") {
+				if (!currentTable) {
+					// Start a new table
+					currentTable = {
+						adfType: "table",
+						children: [],
+						textPosition: currentLineNode.textPosition,
+						textToEmphasis: "",
+					};
+					tableNodes.push(currentTable);
+				}
+				currentTable.children.push(currentLineNode);
+				return { tableNodes, currentTable };
+			} else if (currentLineNode.adfType === "tableDivider") {
+				return { tableNodes, currentTable };
+			} else {
+				// Not a table row, end the current table (if any)
+				tableNodes.push(currentLineNode);
+				return { tableNodes, currentTable: null };
+			}
+		},
+		{ tableNodes: [], currentTable: null }
+	);
+	
+	return tableNodes;
+}
+
 /**
  * Heading is an exception, otherwise non-empty line aggregate in the parent element
  * For all other type, following a markdown with any paragraph of text is considered a continuation, so we aggregate
@@ -163,7 +195,9 @@ function collapseParagraph( rawIROfMarkdown ){
 		
 		if( currentLineNode.adfType === 'heading'
 			|| currentLineNode.adfType === 'divider'
-			|| currentLineNode.adfType === 'codeBlock' ){
+			|| currentLineNode.adfType === 'codeBlock'
+			|| currentLineNode.adfType === 'tableRow'
+			|| currentLineNode.adfType === 'tableDivider'){
 			breakedLineNodes.push( currentLineNode )
 			return { breakedLineNodes }
 		}
@@ -189,11 +223,11 @@ function collapseParagraph( rawIROfMarkdown ){
 		//this is a non-empty paragraph, if we are already filling up a paragraph, let's add the text inside
 		if( currentParent ){
 			const textToAdd = currentLineNode.textPosition >= currentParent.textPosition
-							  ? currentLineNode.textToEmphasis.slice( currentParent.textPosition )
-							  : currentLineNode.textToEmphasis
+				? currentLineNode.textToEmphasis.slice( currentParent.textPosition )
+				: currentLineNode.textToEmphasis
 			currentParent.textToEmphasis = currentParent.textToEmphasis + ( currentLineNode.textToEmphasis.charAt( 0 ) !== ' '
-																			? ' ' + textToAdd
-																			: textToAdd )
+				? ' ' + textToAdd
+				: textToAdd )
 			return { breakedLineNodes, currentParent }
 		}
 		
@@ -254,14 +288,15 @@ function accumulateLevelFromList( rawIROfMarkdown ){
 function createLevelList( rawIROfMarkdown ){
 	return rawIROfMarkdown.reduce( ( currentLevelList, currentNode ) => {
 		if( currentNode.adfType !== 'orderedList'
-			&& currentNode.adfType !== 'bulletList' )
+			&& currentNode.adfType !== 'bulletList'
+			&& currentNode.adfType !== 'table')
 			return currentLevelList
 		
 		return ( currentLevelList.includes( currentNode.textPosition + 2 ) || currentLevelList.includes( currentNode.textPosition + 3 ) )
-			   ? currentLevelList
-			   : currentNode.textPosition + 2 > ( currentLevelList[ currentLevelList.length - 1 ] + 1 )
-				 ? [ ...currentLevelList, currentNode.textPosition + 2 ]
-				 : currentLevelList
+			? currentLevelList
+			: currentNode.textPosition + 2 > ( currentLevelList[ currentLevelList.length - 1 ] + 1 )
+				? [ ...currentLevelList, currentNode.textPosition + 2 ]
+				: currentLevelList
 	}, [ 0 ] )
 }
 

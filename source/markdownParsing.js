@@ -43,6 +43,9 @@ function parseMarkdownLinetoIR( markdownLineTextWithTabs ){
 	const divider = matchDivider( markdownLine )
 	if( divider ) return divider
 	
+	const tableNode = matchTable( markdownLine );
+	if (tableNode) return tableNode;
+	
 	const listNode = matchList( markdownLine )
 	if( listNode ) return listNode
 	
@@ -56,9 +59,9 @@ function parseMarkdownLinetoIR( markdownLineTextWithTabs ){
 	if( paragraphNode ) return paragraphNode
 	
 	//this is a line break then
-	return { 	adfType : 		"paragraph",
+	return {   adfType :     "paragraph",
 		textToEmphasis: "",
-		textPosition: 	markdownLine.length }
+		textPosition:  markdownLine.length }
 }
 
 /**
@@ -82,6 +85,31 @@ function matchHeader( lineToMatch ){
 	}
 	
 	return null
+}
+
+function matchTable(lineToMatch) {
+	// A simplified regex to detect a table row (at least one |).
+	//  More robust handling is needed for edge cases (see below).
+	if (!lineToMatch.trim().startsWith('|') || !lineToMatch.trim().endsWith('|')) {
+		return null;
+	}
+	
+	if (lineToMatch.trim().match(/^\|[-:\|\s]+\|$/)) {
+		return {
+			adfType: 'tableDivider',
+			textToEmphasis: lineToMatch.trim(),
+			textPosition: 0
+		};
+	}
+	
+	const cells = lineToMatch.trim().split('|').slice(1, -1).map(cell => cell.trim());
+	
+	return {
+		adfType: 'tableRow',
+		textToEmphasis: '', //  We don't use textToEmphasis directly for table rows
+		textPosition: 0,
+		cells: cells // Store the cell contents
+	};
 }
 
 /**

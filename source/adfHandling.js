@@ -9,7 +9,7 @@
  * It also remove non-compatible hierarchy that ADF doesn't support
  *
  **********************************************************************************************************************/
-const { marks, Heading, Text, Emoji, BulletList, OrderedList, ListItem, CodeBlock, BlockQuote, Paragraph, Rule }	= require( 'adf-builder' )
+const { marks, Heading, Text, Emoji, BulletList, OrderedList, ListItem, CodeBlock, BlockQuote, Paragraph, Rule, Table, TableRow, TableCell, TableHeader }    = require( 'adf-builder' )
 
 const attachTextToNodeSliceEmphasis = require( __dirname + '/adfEmphasisParsing' )
 
@@ -27,30 +27,59 @@ const attachTextToNodeSliceEmphasis = require( __dirname + '/adfEmphasisParsing'
  */
 function fillADFNodesWithMarkdown( currentParentNode, currentArrayOfNodesOfSameIndent ){
 	currentArrayOfNodesOfSameIndent.reduce( ( lastListNode, currentNode ) => {
+		
+		if (currentNode.node.adfType === "table") {
+			const tableNode = addTypeToNode(currentParentNode, "table");
+			fillADFNodesWithMarkdown(tableNode, currentNode.children); // Process table rows
+			return tableNode; // Return the table node
+		}
+		
+		if (currentNode.node.adfType === "tableRow") {
+			const tableRowNode = new TableRow();
+			currentParentNode.content.add(tableRowNode);
+			
+			let isHeader = false;
+			if (currentParentNode.content.length === 1) {
+				isHeader =
+					currentArrayOfNodesOfSameIndent[
+					currentArrayOfNodesOfSameIndent.indexOf(currentNode) + 1
+						]?.node.adfType === "tableDivider";
+			}
+			
+			for (const cellContent of currentNode.node.cells) {
+				const cellNode = isHeader? new TableHeader() : new TableCell();
+				tableRowNode.content.add(cellNode);
+				const paragraph = new Paragraph()
+				cellNode.content.add(paragraph)
+				attachItemNode(paragraph, cellContent); // Fill cell with a paragraph (simplified)
+			}
+			return tableRowNode;
+		}
+		
 		const nodeOrListNode = lastListNode !== null
-							   && ( currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList' )
-							   && lastListNode.content.type === currentNode.node.adfType
-							   ? lastListNode
-							   : addTypeToNode( currentParentNode, currentNode.node.adfType, currentNode.node.typeParam )
+		&& ( currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList' )
+		&& lastListNode.content.type === currentNode.node.adfType
+			? lastListNode
+			: addTypeToNode( currentParentNode, currentNode.node.adfType, currentNode.node.typeParam )
 		
 		const nodeOrListItem = currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList'
-							   ? nodeOrListNode.content.add( new ListItem() )
-							   : nodeOrListNode
+			? nodeOrListNode.content.add( new ListItem() )
+			: nodeOrListNode
 		const nodeToAttachTextTo = currentNode.node.adfType === 'orderedList' || currentNode.node.adfType === 'bulletList' || currentNode.node.adfType === 'blockQuote'
-								   ? typeof currentNode.node.textToEmphasis !== 'undefined' || currentNode.children.length === 0
-									 ? nodeOrListItem.content.add( new Paragraph() )
-									 : nodeOrListItem
-								   : nodeOrListItem
+			? typeof currentNode.node.textToEmphasis !== 'undefined' || currentNode.children.length === 0
+				? nodeOrListItem.content.add( new Paragraph() )
+				: nodeOrListItem
+			: nodeOrListItem
 		
 		if( currentNode.node.adfType === 'divider' )
 			return lastListNode
 		
 		else if( currentNode.node.adfType !== 'codeBlock'
-				 && currentNode.node.textToEmphasis )
+			&& currentNode.node.textToEmphasis )
 			attachItemNode( nodeToAttachTextTo, currentNode.node.textToEmphasis )
 		
 		else if( currentNode.node.adfType !== 'codeBlock'
-				 && currentNode.node.textToEmphasis === '' )
+			&& currentNode.node.textToEmphasis === '' )
 			attachItemNode( nodeToAttachTextTo, ' ' )
 		
 		else if( currentNode.node.adfType === 'codeBlock' )
@@ -60,9 +89,9 @@ function fillADFNodesWithMarkdown( currentParentNode, currentArrayOfNodesOfSameI
 			fillADFNodesWithMarkdown( nodeOrListItem, currentNode.children )
 		
 		return ( currentNode.node.adfType !== 'orderedList' && currentNode.node.adfType !== 'bulletList' )
-			   || ( !lastListNode || currentNode.node.adfType === lastListNode.content.type )
-			   ? nodeOrListNode
-			   : lastListNode
+		|| ( !lastListNode || currentNode.node.adfType === lastListNode.content.type )
+			? nodeOrListNode
+			: lastListNode
 	}, null )
 }
 
@@ -75,8 +104,8 @@ function fillADFNodesWithMarkdown( currentParentNode, currentArrayOfNodesOfSameI
  *
  * @returns 				{Node}		the node added
  */
-function addTypeToNode( adfNodeToAttachTo, adfType, typeParams ){
-	switch( adfType ) {
+function addTypeToNode(adfNodeToAttachTo, adfType, typeParams) {
+	switch (adfType) {
 		case "heading":
 			return adfNodeToAttachTo.content.add( new Heading( typeParams ) )
 		
@@ -91,7 +120,6 @@ function addTypeToNode( adfNodeToAttachTo, adfType, typeParams ){
 			if( typeParams ) orderedListNode.attrs = { order: typeParams }
 			return adfNodeToAttachTo.content.add( orderedListNode )
 		}
-		
 		case "codeBlock":
 			return adfNodeToAttachTo.content.add( new CodeBlock( typeParams ) )
 		
@@ -99,8 +127,9 @@ function addTypeToNode( adfNodeToAttachTo, adfType, typeParams ){
 			return adfNodeToAttachTo.content.add( new BlockQuote() )
 		
 		case "paragraph":
-			return adfNodeToAttachTo.content.add( new Paragraph() )
-		
+			return adfNodeToAttachTo.content.add(new Paragraph())
+		case "table":
+			return adfNodeToAttachTo.content.add(new Table()); // Add table support
 		default:
 			throw 'incompatible type'
 	}
