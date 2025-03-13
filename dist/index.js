@@ -1109,7 +1109,7 @@ function addTypeToNode(adfNodeToAttachTo, adfType, typeParams) {
 			return adfNodeToAttachTo.content.push(orderedListNode) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		}
 		case "codeBlock":
-			return adfNodeToAttachTo.content.push(codeBlock(typeParams)()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
+			return adfNodeToAttachTo.content.push(codeBlock(typeParams)) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
 		
 		case "blockQuote":
 			return adfNodeToAttachTo.content.push(blockquote()) && adfNodeToAttachTo.content[adfNodeToAttachTo.content.length - 1];
